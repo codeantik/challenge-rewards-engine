@@ -17,7 +17,7 @@ from app.models.challenge import Challenge, ChallengeStatus
 from app.models.progress import Progress
 from app.models.reward import Reward
 from app.schemas.progress import ProgressOut, StreakOut
-from app.schemas.rewards import RewardOut
+from app.schemas.rewards import RewardOut, RewardsSummaryOut, RewardTypeSummary
 from app.services.strategies import STREAK_CHALLENGE_TYPES, compute_user_streak
 
 router = APIRouter(prefix="/users/me", tags=["users"])
@@ -84,3 +84,36 @@ async def get_my_rewards(
         data=[RewardOut.model_validate(r) for r in rows],
         meta={"page": page, "limit": limit, "total": total, "total_pages": total_pages},
     )
+
+
+@router.get("/rewards/summary", response_model=Envelope[RewardsSummaryOut])
+async def get_my_rewards_summary(
+    user: CurrentUser, db: DbSession
+) -> Envelope[RewardsSummaryOut]:
+    stmt = (
+        select(
+            Reward.reward_type,
+            func.sum(Reward.amount).label("total_amount"),
+            func.count().label("count"),
+            func.max(Reward.created_at).label("latest_at"),
+        )
+        .where(Reward.user_id == user.id)
+        .group_by(Reward.reward_type)
+    )
+    rows = (await db.execute(stmt)).all()
+
+    total_points = 0
+    badges: list[RewardTypeSummary] = []
+    for reward_type, total_amount, count, latest_at in rows:
+        if reward_type == "points":
+            total_points = total_amount
+            continue
+        badges.append(
+            RewardTypeSummary(
+                reward_type=reward_type,
+                total_amount=total_amount,
+                count=count,
+                latest_at=latest_at,
+            )
+        )
+    return Envelope(data=RewardsSummaryOut(total_points=total_points, badges=badges))
