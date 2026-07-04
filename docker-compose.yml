@@ -41,6 +41,19 @@ services:
       timeout: 5s
       retries: 10
 
+  worker:
+    build: ./backend
+    command: ["python", "-m", "app.worker"]
+    environment:
+      ENVIRONMENT: development
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/challenge_rewards
+      FORUM_TIMEZONE: UTC
+      JWT_SECRET: change-me-in-.env
+      CORS_ORIGINS: '["http://localhost:3000"]'
+    depends_on:
+      backend:
+        condition: service_healthy
+
   frontend:
     build: ./frontend
     environment:

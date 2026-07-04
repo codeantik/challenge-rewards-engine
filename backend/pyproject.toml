@@ -14,6 +14,10 @@ dependencies = [
     "bcrypt>=4.2",
     "pyjwt>=2.9",
     "email-validator>=2.2",
+    # `zoneinfo` (used for forum-TZ streak-day bucketing) has no bundled tz
+    # database on Windows and on slim Linux images (e.g. python:3.12-slim) —
+    # this is the portable fallback the stdlib looks for automatically.
+    "tzdata>=2024.2",
 ]
 
 [project.optional-dependencies]

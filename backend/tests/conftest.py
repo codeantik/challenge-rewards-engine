@@ -7,10 +7,12 @@ from sqlalchemy import delete, update
 from app.core.db import get_engine, get_sessionmaker
 from app.main import app
 from app.models.base import Base
+from app.models.challenge import Challenge
 from app.models.comment import Comment
 from app.models.event import Event
 from app.models.job import Job
 from app.models.post import Post
+from app.models.progress import Progress
 from app.models.user import User
 
 
@@ -30,6 +32,8 @@ async def _clean_tables() -> AsyncGenerator[None, None]:
         # posts.solution_comment_id -> comments and comments.post_id -> posts
         # form a cycle; null out the back-reference before deleting either.
         await session.execute(update(Post).values(solution_comment_id=None))
+        await session.execute(delete(Progress))
+        await session.execute(delete(Challenge))
         await session.execute(delete(Job))
         await session.execute(delete(Event))
         await session.execute(delete(Comment))

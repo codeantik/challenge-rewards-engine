@@ -2,7 +2,7 @@
 
 A Postgres-backed challenge/reward evaluation engine, decoupled from a Vultr Developer Community Forum (Next.js) via an async event pipeline. See `CLAUDE.md` for the architectural invariants and `plan.md` for the phase-by-phase build plan. See `explain.md` for the design rationale (maintained separately — not this file).
 
-> **Status:** Phases 0–3 (foundations, auth & roles, forum domain, event ingestion & idempotency). The challenge evaluator, reward disbursal, and the frontend pages are not built yet.
+> **Status:** Phases 0–4 (foundations, auth & roles, forum domain, event ingestion & idempotency, challenge engine + evaluator + worker). Reward disbursal, progress/streak reads, and the frontend pages are not built yet.
 
 ## Setup
 
@@ -19,6 +19,12 @@ uvicorn app.main:app --reload
 ```
 
 Health check: `GET http://localhost:8000/api/health`
+
+The evaluation worker is a separate process (not `BackgroundTasks` — see `CLAUDE.md`); run it alongside the API:
+
+```bash
+python -m app.worker
+```
 
 ### Frontend
 
@@ -37,7 +43,7 @@ App: `http://localhost:3000`
 docker compose up --build
 ```
 
-Brings up Postgres (named volume), the backend (`/api/health`), and the frontend.
+Brings up Postgres (named volume), the backend (`/api/health`), the evaluation worker, and the frontend.
 
 ## Env vars
 
