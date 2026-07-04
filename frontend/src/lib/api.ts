@@ -43,7 +43,13 @@ interface RequestOptions {
   signal?: AbortSignal;
 }
 
-export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+/** Returns the full `{data, meta}` envelope — for callers (e.g. paginated
+ * lists) that need `meta` alongside `data`. `apiRequest` below is the common
+ * case that just wants `data`. */
+export async function apiRequestEnvelope<T>(
+  path: string,
+  options: RequestOptions = {},
+): Promise<Envelope<T>> {
   const { method = "GET", body, token, signal } = options;
 
   const headers: Record<string, string> = {};
@@ -58,7 +64,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   });
 
   if (response.status === 204) {
-    return undefined as T;
+    return { data: undefined as T };
   }
 
   const json = (await response.json()) as Envelope<T> | { error: ApiErrorBody };
@@ -71,5 +77,10 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     throw new ApiError(response.status, errorBody);
   }
 
-  return (json as Envelope<T>).data;
+  return json as Envelope<T>;
+}
+
+export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const envelope = await apiRequestEnvelope<T>(path, options);
+  return envelope.data;
 }
