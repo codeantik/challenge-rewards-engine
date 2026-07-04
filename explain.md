@@ -162,9 +162,9 @@ Quick map of each graded behaviour to where it should live, so nothing gets drop
 - Notes:
 
 ### Phase 1 — Auth & roles
-- Built:
-- Key decision (JWT vs session, role gating):
-- Notes:
+- Built: `users` table (`id` UUID pk, `email` unique+indexed, `password_hash`, `role` string with a `CHECK (role in ('user','admin'))` constraint, `created_at`) via Alembic migration `c1cf4340c3f3`; `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`; `app/core/security.py` (bcrypt hashing, PyJWT encode/decode); `app/api/deps.py` with `get_current_user`/`require_admin` exposed as reusable `Annotated` aliases (`CurrentUser`, `AdminUser`).
+- Key decision (JWT vs session, role gating): JWT, stateless — no session table, no server-side revocation list needed for a 5-day assignment scope. The token payload only carries `sub` (user id) + `iat`/`exp`, deliberately **not** a role claim: `require_admin` re-reads `role` from the DB on every request via `get_current_user`, so a role change (e.g. promoting a user to admin) takes effect on the user's very next request instead of waiting for a fresh login/token. The trade-off is one extra DB read per authenticated request — acceptable at this scale, and it closes the "stale role in an old token" class of bug for free.
+- Notes: Email is lowercased at the schema layer (`RegisterRequest`/`LoginRequest` validators) before it ever reaches a query or an insert, so uniqueness and login lookups are case-insensitive without needing a DB-side `citext` extension. There's no self-serve "become an admin" endpoint by design — admin promotion is an out-of-band DB write (a seed script arrives in Phase 9); Phase 1's tests promote a user directly via `UPDATE users SET role = 'admin'` to exercise `require_admin`. Since Phase 4's admin challenge CRUD is the first real consumer of `require_admin`, Phase 1 adds a test-only probe route (`GET /api/auth/_admin_probe`, mounted only inside `tests/test_auth.py`) purely to prove the dependency rejects a `user` token with `403` and accepts an `admin` token with `200` — this is the "admin-only test route" the plan called for, not a shipped product endpoint.
 
 ### Phase 2 — Forum domain
 - Built:
