@@ -1,5 +1,6 @@
 "use client";
 
+import { TriangleAlertIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
@@ -34,7 +35,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <Card>
+    <Card className="shadow-xl shadow-foreground/5">
       <CardHeader>
         <CardTitle>Create an account</CardTitle>
         <CardDescription>Join the Vultr Developer Community.</CardDescription>
@@ -65,8 +66,13 @@ export default function RegisterPage() {
             />
             <p className="text-muted-foreground text-xs">At least 8 characters.</p>
           </div>
-          {error && <p className="text-destructive text-sm">{error}</p>}
-          <Button type="submit" disabled={isSubmitting}>
+          {error && (
+            <p className="border-destructive/30 bg-destructive/5 text-destructive animate-in fade-in slide-in-from-top-1 flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm">
+              <TriangleAlertIcon className="size-3.5 shrink-0" />
+              {error}
+            </p>
+          )}
+          <Button type="submit" disabled={isSubmitting} className="w-full">
             {isSubmitting ? "Creating account..." : "Create account"}
           </Button>
           <p className="text-muted-foreground text-center text-sm">

@@ -16,8 +16,18 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
   }, [status, router]);
 
   return (
-    <div className="flex flex-1 items-center justify-center p-6">
-      <div className="w-full max-w-sm">{children}</div>
+    <div className="brand-glow flex flex-1 items-center justify-center p-6">
+      <div className="flex w-full max-w-sm flex-col items-center gap-6">
+        <div className="flex items-center gap-2">
+          <span className="brand-gradient-bg flex size-9 shrink-0 items-center justify-center rounded-xl text-base font-bold text-white shadow-sm">
+            V
+          </span>
+          <span className="text-lg font-semibold tracking-tight">Vultr Community</span>
+        </div>
+        <div className="animate-in fade-in slide-in-from-bottom-2 w-full duration-300">
+          {children}
+        </div>
+      </div>
     </div>
   );
 }

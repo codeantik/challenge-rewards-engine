@@ -1,8 +1,10 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { AwardIcon, SparklesIcon } from "lucide-react";
 import { useState } from "react";
 
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,14 +56,22 @@ function PointsSummary() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <p className="text-3xl font-semibold tabular-nums">{data?.total_points ?? 0}</p>
-        <p className="text-muted-foreground text-sm">points earned</p>
+      <div className="brand-gradient-bg flex items-center gap-3 rounded-xl p-4 text-white shadow-sm">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/15">
+          <SparklesIcon className="size-5" />
+        </span>
+        <div>
+          <p className="text-3xl leading-tight font-bold tabular-nums">
+            {data?.total_points ?? 0}
+          </p>
+          <p className="text-sm text-white/80">points earned</p>
+        </div>
       </div>
       {badges.length > 0 ? (
         <div className="flex flex-wrap gap-2">
           {badges.map((badge) => (
-            <Badge key={badge.reward_type} variant="secondary">
+            <Badge key={badge.reward_type} variant="secondary" className="gap-1 py-1">
+              <AwardIcon className="text-primary size-3" />
               {badge.reward_type} ×{badge.count}
             </Badge>
           ))}
@@ -124,7 +134,7 @@ function RewardsLedger() {
                 {formatRelativeTime(reward.created_at)}
               </span>
             </div>
-            <span className="font-medium tabular-nums">+{reward.amount}</span>
+            <span className="text-success font-semibold tabular-nums">+{reward.amount}</span>
           </div>
         ))}
       </div>
@@ -160,13 +170,20 @@ export default function ProfilePage() {
   const { user } = useAuth();
 
   return (
-    <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-lg font-semibold">Profile &amp; Rewards</h1>
-        <p className="text-muted-foreground text-sm">{user?.email}</p>
+    <div className="animate-in fade-in flex flex-col gap-4 duration-300">
+      <div className="flex items-center gap-3">
+        <Avatar size="lg" className="ring-border ring-2">
+          <AvatarFallback className="brand-gradient-bg text-white">
+            {user?.email.slice(0, 2).toUpperCase()}
+          </AvatarFallback>
+        </Avatar>
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Profile &amp; Rewards</h1>
+          <p className="text-muted-foreground text-sm">{user?.email}</p>
+        </div>
       </div>
 
-      <Card>
+      <Card className="card-hover">
         <CardHeader>
           <CardTitle className="text-sm">Points &amp; badges</CardTitle>
         </CardHeader>
@@ -177,7 +194,7 @@ export default function ProfilePage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="card-hover">
         <CardHeader>
           <CardTitle className="text-sm">Reward ledger</CardTitle>
         </CardHeader>

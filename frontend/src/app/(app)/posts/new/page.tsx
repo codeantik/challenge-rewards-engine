@@ -1,5 +1,6 @@
 "use client";
 
+import { SendIcon } from "lucide-react";
 import { type FormEvent, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,7 @@ export default function CreatePostPage() {
   }
 
   return (
-    <Card>
+    <Card className="animate-in fade-in slide-in-from-bottom-2 mx-auto max-w-2xl duration-300">
       <CardHeader>
         <CardTitle>Create post</CardTitle>
         <CardDescription>Share something with the community.</CardDescription>
@@ -48,7 +49,8 @@ export default function CreatePostPage() {
               onChange={(event) => setBody(event.target.value)}
             />
           </div>
-          <Button type="submit" disabled={isPending} className="self-start">
+          <Button type="submit" disabled={isPending} className="gap-1.5 self-start">
+            <SendIcon className="size-3.5" />
             {isPending ? "Publishing..." : "Publish"}
           </Button>
         </form>

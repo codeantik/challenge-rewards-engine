@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { CheckCircle2Icon, MessageSquareIcon, EyeIcon, PlusIcon, InboxIcon } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 
@@ -12,7 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useFeedParams } from "@/hooks/use-feed-params";
 import { useAuth } from "@/lib/auth-context";
 import { fetchPosts, type SortOption } from "@/lib/posts-api";
-import { formatRelativeTime } from "@/lib/utils";
+import { cn, formatRelativeTime } from "@/lib/utils";
 
 const SORT_TABS: { value: SortOption; label: string }[] = [
   { value: "latest", label: "Latest" },
@@ -48,22 +49,27 @@ function FeedContent() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-lg font-semibold">Feed</h1>
-        <Link href="/posts/new" className={buttonVariants({ variant: "default" })}>
+        <h1 className="text-xl font-semibold tracking-tight">Feed</h1>
+        <Link href="/posts/new" className={cn(buttonVariants({ variant: "default" }), "gap-1.5")}>
+          <PlusIcon className="size-4" />
           New post
         </Link>
       </div>
 
-      <div className="flex gap-1">
+      <div className="bg-muted inline-flex w-fit gap-0.5 rounded-lg p-0.5">
         {SORT_TABS.map((tab) => (
-          <Button
+          <button
             key={tab.value}
-            size="sm"
-            variant={sort === tab.value ? "secondary" : "ghost"}
             onClick={() => setSort(tab.value)}
+            className={cn(
+              "rounded-md px-3 py-1.5 text-sm font-medium transition-all",
+              sort === tab.value
+                ? "bg-card text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
           >
             {tab.label}
-          </Button>
+          </button>
         ))}
       </div>
 
@@ -77,22 +83,40 @@ function FeedContent() {
           </Button>
         </div>
       ) : !data || data.posts.length === 0 ? (
-        <p className="text-muted-foreground text-sm">No posts yet — be the first to post.</p>
+        <div className="text-muted-foreground flex flex-col items-center gap-2 rounded-xl border border-dashed p-12 text-center text-sm">
+          <InboxIcon className="text-muted-foreground/50 size-8" />
+          No posts yet — be the first to post.
+        </div>
       ) : (
-        <div className="flex flex-col gap-3">
+        <div className="animate-in fade-in flex flex-col gap-3 duration-300">
           {data.posts.map((post) => (
-            <Card key={post.id}>
+            <Card key={post.id} className="card-hover">
               <CardContent className="flex flex-col gap-1.5">
                 <div className="flex items-start justify-between gap-2">
-                  <Link href={`/posts/${post.id}`} className="truncate font-medium hover:underline">
+                  <Link
+                    href={`/posts/${post.id}`}
+                    className="hover:text-primary truncate font-medium transition-colors"
+                  >
                     {post.title}
                   </Link>
-                  {post.solution_comment_id && <Badge variant="secondary">Solved</Badge>}
+                  {post.solution_comment_id && (
+                    <Badge variant="secondary" className="bg-success/10 text-success gap-1 shrink-0">
+                      <CheckCircle2Icon className="size-3" />
+                      Solved
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-muted-foreground line-clamp-2 text-sm">{post.body}</p>
-                <p className="text-muted-foreground text-xs">
-                  {post.comment_count} comments · {post.view_count} views ·{" "}
-                  {formatRelativeTime(post.created_at)}
+                <p className="text-muted-foreground flex items-center gap-3 text-xs">
+                  <span className="flex items-center gap-1">
+                    <MessageSquareIcon className="size-3" />
+                    {post.comment_count}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <EyeIcon className="size-3" />
+                    {post.view_count}
+                  </span>
+                  <span>{formatRelativeTime(post.created_at)}</span>
                 </p>
               </CardContent>
             </Card>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { CalendarDaysIcon, CheckCircle2Icon, FlameIcon, TargetIcon } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -25,6 +26,7 @@ import { useAuth } from "@/lib/auth-context";
 import { fetchActiveChallenges, type ChallengeWithProgress } from "@/lib/challenges-api";
 import { WEEKLY_POLL_INTERVAL_MS } from "@/lib/config";
 import { fetchStreaks } from "@/lib/progress-api";
+import { cn } from "@/lib/utils";
 
 const CHART_COLORS = [
   "var(--color-chart-1)",
@@ -89,7 +91,11 @@ function WeeklyBreakdown() {
               <span className="font-medium">{challenge.name}</span>
               <span className="text-muted-foreground text-xs">{challenge.description}</span>
             </div>
-            <Badge variant={complete ? "secondary" : "outline"}>
+            <Badge
+              variant={complete ? "secondary" : "outline"}
+              className={cn("gap-1", complete && "bg-success/15 text-success")}
+            >
+              {complete && <CheckCircle2Icon className="size-3" />}
               {complete ? "Complete" : `${current}/${target}`}
             </Badge>
           </div>
@@ -201,17 +207,20 @@ function StreakChart() {
 
 export default function ChallengesPage() {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="animate-in fade-in flex flex-col gap-4 duration-300">
       <div>
-        <h1 className="text-lg font-semibold">Challenges &amp; Progress</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Challenges &amp; Progress</h1>
         <p className="text-muted-foreground text-sm">
           Updates automatically every 30s as the worker evaluates new events.
         </p>
       </div>
 
-      <Card>
+      <Card className="card-hover">
         <CardHeader>
-          <CardTitle className="text-sm">This week</CardTitle>
+          <CardTitle className="flex items-center gap-1.5 text-sm">
+            <CalendarDaysIcon className="text-primary size-4" />
+            This week
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <ErrorBoundary>
@@ -220,9 +229,12 @@ export default function ChallengesPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="card-hover">
         <CardHeader>
-          <CardTitle className="text-sm">Progress</CardTitle>
+          <CardTitle className="flex items-center gap-1.5 text-sm">
+            <TargetIcon className="text-primary size-4" />
+            Progress
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <ErrorBoundary>
@@ -231,9 +243,12 @@ export default function ChallengesPage() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="card-hover">
         <CardHeader>
-          <CardTitle className="text-sm">Streaks</CardTitle>
+          <CardTitle className="flex items-center gap-1.5 text-sm">
+            <FlameIcon className="text-primary size-4" />
+            Streaks
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <ErrorBoundary>

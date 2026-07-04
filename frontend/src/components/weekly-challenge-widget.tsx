@@ -1,26 +1,22 @@
 "use client";
 
+import { CheckCircle2Icon, TrophyIcon } from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth-context";
 import { useWeeklyChallenge } from "@/hooks/use-weekly-challenge";
 import type { ChallengeWithProgress } from "@/lib/challenges-api";
-
-function ProgressBar({ value, target }: { value: number; target: number }) {
-  const pct = target > 0 ? Math.min(100, Math.round((value / target) * 100)) : 0;
-  return (
-    <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
-      <div className="bg-primary h-full rounded-full transition-all" style={{ width: `${pct}%` }} />
-    </div>
-  );
-}
+import { cn } from "@/lib/utils";
 
 function ChallengeRow({ challenge }: { challenge: ChallengeWithProgress }) {
   const current = challenge.progress?.current_value ?? 0;
   const target = challenge.progress?.target_value ?? (challenge.rule_config.target as number) ?? 0;
   const complete = challenge.progress?.is_complete ?? false;
+  const pct = target > 0 ? Math.round((current / target) * 100) : 0;
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -28,11 +24,17 @@ function ChallengeRow({ challenge }: { challenge: ChallengeWithProgress }) {
         <p className="truncate text-sm font-medium" title={challenge.name}>
           {challenge.name}
         </p>
-        <span className="text-muted-foreground shrink-0 text-xs">
+        <span
+          className={cn(
+            "flex shrink-0 items-center gap-1 text-xs",
+            complete ? "text-success font-medium" : "text-muted-foreground",
+          )}
+        >
+          {complete && <CheckCircle2Icon className="size-3" />}
           {complete ? "Done" : `${current}/${target}`}
         </span>
       </div>
-      <ProgressBar value={current} target={target} />
+      <Progress value={pct} complete={complete} />
     </div>
   );
 }
@@ -80,9 +82,12 @@ function WeeklyChallengeContent() {
  * live in `useWeeklyChallenge`; this component is presentation only. */
 export function WeeklyChallengeWidget() {
   return (
-    <Card>
+    <Card className="border-primary/10 shadow-sm">
       <CardHeader>
-        <CardTitle className="text-sm">This Week</CardTitle>
+        <CardTitle className="flex items-center gap-1.5 text-sm">
+          <TrophyIcon className="text-primary size-4" />
+          This Week
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <ErrorBoundary>

@@ -1,12 +1,21 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CheckCircle2Icon, EyeIcon, MessageSquareIcon, SendIcon } from "lucide-react";
 import { type FormEvent, use, useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,7 +28,7 @@ import {
   markSolution,
   type PostDetail,
 } from "@/lib/posts-api";
-import { formatRelativeTime } from "@/lib/utils";
+import { cn, formatRelativeTime } from "@/lib/utils";
 
 interface PostDetailPageProps {
   params: Promise<{ id: string }>;
@@ -49,26 +58,59 @@ function CommentRow({
   onMarkSolution: () => void;
   isMarking: boolean;
 }) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
   return (
-    <Card>
+    <Card className={cn(isSolution && "bg-success/5 ring-success/30 ring-2")}>
       <CardContent className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between gap-2">
           <span className="text-muted-foreground text-xs">
             {formatRelativeTime(comment.created_at)}
           </span>
-          {isSolution && <Badge variant="secondary">Solution</Badge>}
+          {isSolution && (
+            <Badge className="bg-success/15 text-success gap-1">
+              <CheckCircle2Icon className="size-3" />
+              Solution
+            </Badge>
+          )}
         </div>
         <p className="text-sm">{comment.body}</p>
         {isPostOwner && !isSolution && (
-          <Button
-            size="sm"
-            variant="outline"
-            className="self-start"
-            disabled={isMarking}
-            onClick={onMarkSolution}
-          >
-            Mark as solution
-          </Button>
+          <>
+            <Button
+              size="sm"
+              variant="outline"
+              className="self-start"
+              disabled={isMarking}
+              onClick={() => setConfirmOpen(true)}
+            >
+              Mark as solution
+            </Button>
+            <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Mark as solution?</DialogTitle>
+                  <DialogDescription>
+                    This flags the comment as the accepted answer for this post. You can only
+                    have one solution per post.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setConfirmOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      onMarkSolution();
+                      setConfirmOpen(false);
+                    }}
+                  >
+                    Mark as solution
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </>
         )}
       </CardContent>
     </Card>
@@ -174,16 +216,28 @@ function PostDetailContent({ id }: { id: string }) {
   const isPostOwner = user?.id === data.author_id;
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="animate-in fade-in flex flex-col gap-6 duration-300">
       <div className="flex flex-col gap-2">
         <div className="flex items-start justify-between gap-2">
-          <h1 className="text-lg font-semibold">{data.title}</h1>
-          {data.solution_comment_id && <Badge variant="secondary">Solved</Badge>}
+          <h1 className="text-xl font-semibold tracking-tight">{data.title}</h1>
+          {data.solution_comment_id && (
+            <Badge className="bg-success/15 text-success shrink-0 gap-1">
+              <CheckCircle2Icon className="size-3" />
+              Solved
+            </Badge>
+          )}
         </div>
         <p className="text-sm whitespace-pre-wrap">{data.body}</p>
-        <p className="text-muted-foreground text-xs">
-          {data.comment_count} comments · {data.view_count} views ·{" "}
-          {formatRelativeTime(data.created_at)}
+        <p className="text-muted-foreground flex items-center gap-3 text-xs">
+          <span className="flex items-center gap-1">
+            <MessageSquareIcon className="size-3" />
+            {data.comment_count} comments
+          </span>
+          <span className="flex items-center gap-1">
+            <EyeIcon className="size-3" />
+            {data.view_count} views
+          </span>
+          <span>{formatRelativeTime(data.created_at)}</span>
         </p>
       </div>
 
@@ -215,9 +269,10 @@ function PostDetailContent({ id }: { id: string }) {
           <Button
             type="submit"
             size="sm"
-            className="self-start"
+            className="gap-1.5 self-start"
             disabled={commentMutation.isPending || !commentBody.trim()}
           >
+            <SendIcon className="size-3.5" />
             {commentMutation.isPending ? "Posting..." : "Post comment"}
           </Button>
         </form>
