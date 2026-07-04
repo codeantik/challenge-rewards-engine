@@ -20,6 +20,10 @@ class Settings(BaseSettings):
 
     cors_origins: list[str] = ["http://localhost:3000"]
 
+    # Token-bucket limits for `POST /api/events` (see app/core/rate_limit.py).
+    event_rate_limit_capacity: int = 20
+    event_rate_limit_window_seconds: float = 60.0
+
 
 @lru_cache
 def get_settings() -> Settings:

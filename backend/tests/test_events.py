@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import uuid
 
+import pytest
 from httpx import AsyncClient
 from sqlalchemy import select
 
+from app.api import events as events_module
 from app.core.db import get_sessionmaker
 from app.models.event import Event
 from app.models.job import Job
@@ -99,3 +101,37 @@ async def test_create_event_rejects_bad_body(client: AsyncClient) -> None:
     )
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+async def test_exceeding_the_event_rate_limit_returns_429(client: AsyncClient) -> None:
+    headers = await _register_and_login(client, "ratelimited@example.com")
+
+    original_capacity = events_module._rate_limiter.capacity
+    events_module._rate_limiter.capacity = 2
+    try:
+        for _ in range(2):
+            response = await client.post(
+                "/api/events",
+                json={"event_id": str(uuid.uuid4()), "event_type": "custom_event", "payload": {}},
+                headers=headers,
+            )
+            assert response.status_code == 202
+
+        blocked = await client.post(
+            "/api/events",
+            json={"event_id": str(uuid.uuid4()), "event_type": "custom_event", "payload": {}},
+            headers=headers,
+        )
+        assert blocked.status_code == 429
+        assert blocked.json()["error"]["code"] == "RATE_LIMITED"
+    finally:
+        events_module._rate_limiter.capacity = original_capacity
+        events_module._rate_limiter._buckets.clear()
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter() -> None:
+    # Every test in this module shares the process-global limiter (by
+    # design — see app/core/rate_limit.py). Clear it before each test so an
+    # earlier test's token spend never bleeds into another's assertions.
+    events_module._rate_limiter._buckets.clear()

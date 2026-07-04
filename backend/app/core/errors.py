@@ -13,6 +13,7 @@ exceptions become responses, so no route needs its own try/except-to-JSON.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 from fastapi import FastAPI, status
@@ -52,6 +53,22 @@ def _request_id(request: Request) -> str:
     return str(getattr(request.state, "request_id", "unknown"))
 
 
+def _sanitize_validation_errors(errors: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Pydantic v2 puts the raised exception itself under `ctx.error` for
+    `model_validator` failures (e.g. `validate_challenge_config`'s
+    `ValueError`) — that's not JSON-serializable, so `json.dumps` blows up
+    turning a 422 into an unhandled 500. Swap it for its string form; that's
+    the only non-serializable field pydantic ever puts in `.errors()`.
+    """
+    sanitized = []
+    for err in errors:
+        ctx = err.get("ctx")
+        if isinstance(ctx, dict) and isinstance(ctx.get("error"), BaseException):
+            err = {**err, "ctx": {**ctx, "error": str(ctx["error"])}}
+        sanitized.append(err)
+    return sanitized
+
+
 def _error_body(code: str, message: str, request_id: str, details: Any = None) -> dict[str, Any]:
     return {
         "error": {
@@ -79,9 +96,12 @@ def register_exception_handlers(app: FastAPI) -> None:
     ) -> JSONResponse:
         request_id = _request_id(request)
         return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             content=_error_body(
-                "VALIDATION_ERROR", "request validation failed", request_id, exc.errors()
+                "VALIDATION_ERROR",
+                "request validation failed",
+                request_id,
+                _sanitize_validation_errors(exc.errors()),
             ),
             headers={"X-Request-Id": request_id},
         )

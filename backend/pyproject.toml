@@ -56,3 +56,12 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# The session-scoped `_schema` fixture (tests/conftest.py) creates the async
+# engine on the first test's event loop; `app/core/db.py` then caches that
+# engine/pool as a process-global singleton. Without this, pytest-asyncio's
+# default per-function event loop means every later test tries to reuse
+# pooled connections bound to a loop that's already gone ("Future attached
+# to a different loop"). Session-scoping the loop keeps engine and tests on
+# the same loop for the whole run.
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
