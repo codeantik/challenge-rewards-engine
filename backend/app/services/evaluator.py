@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.challenge import Challenge, ChallengeStatus
 from app.models.event import Event
 from app.models.progress import Progress
+from app.services.rewards import disburse_reward
 from app.services.strategies import STRATEGIES, StrategyResult
 
 
@@ -67,3 +68,9 @@ async def evaluate_event(db: AsyncSession, event: Event) -> None:
         await _upsert_progress(
             db, user_id=event.user_id, challenge_id=challenge.id, result=result
         )
+        if result.is_complete:
+            # Idempotent regardless of how many times this challenge has
+            # already been evaluated as complete (invariant #5) — the
+            # unique constraint on (user, challenge, completion_key) is
+            # what actually prevents a double payout, not this `if`.
+            await disburse_reward(db, user_id=event.user_id, challenge=challenge)

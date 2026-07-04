@@ -19,6 +19,18 @@ class ChallengeStatus(enum.StrEnum):
     archived = "archived"
 
 
+class ChallengePeriod(enum.StrEnum):
+    """Orthogonal to `type` (invariant #3 is only about `type`): this is
+    what `completion_key` and the strategies' event window are derived
+    from, not a second evaluator branch. `one_time` challenges reward once
+    ever; `weekly` ones re-window to `[Monday 00:00 forum-TZ, now]` on every
+    evaluation and reward once per ISO week (see `app/services/rewards.py`).
+    """
+
+    one_time = "one_time"
+    weekly = "weekly"
+
+
 class Challenge(Base):
     """A data-driven challenge config (CLAUDE.md invariant #3).
 
@@ -37,6 +49,7 @@ class Challenge(Base):
         CheckConstraint(
             "status in ('draft', 'active', 'expired', 'archived')", name="ck_challenges_status"
         ),
+        CheckConstraint("period in ('one_time', 'weekly')", name="ck_challenges_period"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -50,6 +63,9 @@ class Challenge(Base):
 
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default=ChallengeStatus.draft.value, index=True
+    )
+    period: Mapped[str] = mapped_column(
+        String(20), nullable=False, default=ChallengePeriod.one_time.value
     )
     start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

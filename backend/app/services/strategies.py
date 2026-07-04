@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any, Protocol
 from zoneinfo import ZoneInfo
 
@@ -26,7 +26,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.models.challenge import Challenge
+from app.models.challenge import Challenge, ChallengePeriod
 from app.models.event import Event
 
 
@@ -59,10 +59,38 @@ def _require_positive_int(rule_config: dict[str, Any], key: str) -> int:
     return value
 
 
+def week_start(now: datetime, tz: ZoneInfo) -> datetime:
+    """Monday 00:00 in the forum timezone containing `now` — the lower
+    bound of "this week" (CLAUDE.md invariant #6). Returned tz-aware in UTC
+    so it compares directly against `Event.created_at`.
+    """
+    local_now = now.astimezone(tz)
+    monday = local_now.date() - timedelta(days=local_now.weekday())
+    local_midnight = datetime.combine(monday, time.min, tzinfo=tz)
+    return local_midnight.astimezone(UTC)
+
+
+def effective_window(
+    challenge: Challenge, *, now: datetime, tz: ZoneInfo
+) -> tuple[datetime | None, datetime | None]:
+    """The event window a strategy counts within: the challenge's own
+    `[start_at, end_at]`, clipped to "this week" when `period == weekly` so
+    progress — and therefore the reward, via `completion_key` — resets every
+    Monday. `period` is orthogonal to `type` (CLAUDE.md invariant #3 only
+    restricts branching on `type`), so both strategies apply this the same
+    way rather than the evaluator special-casing one of them.
+    """
+    start_at = challenge.start_at
+    if challenge.period == ChallengePeriod.weekly.value:
+        ws = week_start(now, tz)
+        start_at = max(start_at, ws) if start_at is not None else ws
+    return start_at, challenge.end_at
+
+
 class CountStrategy:
     """`{"target": N}` — complete once `event_type` has fired N times for
-    this user inside the challenge's `[start_at, end_at]` window (either
-    bound may be open).
+    this user inside the challenge's effective window (`[start_at, end_at]`,
+    further clipped to the current week for `period=weekly` challenges).
     """
 
     def validate_config(self, rule_config: dict[str, Any]) -> None:
@@ -72,14 +100,16 @@ class CountStrategy:
         self, db: AsyncSession, *, user_id: uuid.UUID, challenge: Challenge
     ) -> StrategyResult:
         target = _require_positive_int(challenge.rule_config, "target")
+        tz = ZoneInfo(get_settings().forum_timezone)
+        start_at, end_at = effective_window(challenge, now=datetime.now(UTC), tz=tz)
 
         stmt = select(func.count()).select_from(Event).where(
             Event.user_id == user_id, Event.event_type == challenge.event_type
         )
-        if challenge.start_at is not None:
-            stmt = stmt.where(Event.created_at >= challenge.start_at)
-        if challenge.end_at is not None:
-            stmt = stmt.where(Event.created_at <= challenge.end_at)
+        if start_at is not None:
+            stmt = stmt.where(Event.created_at >= start_at)
+        if end_at is not None:
+            stmt = stmt.where(Event.created_at <= end_at)
 
         current = await db.scalar(stmt) or 0
         return StrategyResult(
@@ -122,6 +152,23 @@ def compute_streak(days: set[date], today: date) -> tuple[int, int]:
     return current, best
 
 
+async def _fetch_qualifying_days(
+    db: AsyncSession, *, user_id: uuid.UUID, challenge: Challenge, tz: ZoneInfo, now: datetime
+) -> set[date]:
+    start_at, end_at = effective_window(challenge, now=now, tz=tz)
+
+    stmt = select(Event.created_at).where(
+        Event.user_id == user_id, Event.event_type == challenge.event_type
+    )
+    if start_at is not None:
+        stmt = stmt.where(Event.created_at >= start_at)
+    if end_at is not None:
+        stmt = stmt.where(Event.created_at <= end_at)
+
+    timestamps = (await db.scalars(stmt)).all()
+    return {ts.astimezone(tz).date() for ts in timestamps}
+
+
 class StreakStrategy:
     """`{"length": N}` — complete once the user has a run of N consecutive
     forum-TZ days with at least one qualifying event.
@@ -135,18 +182,12 @@ class StreakStrategy:
     ) -> StrategyResult:
         length = _require_positive_int(challenge.rule_config, "length")
         tz = ZoneInfo(get_settings().forum_timezone)
+        now = datetime.now(UTC)
 
-        stmt = select(Event.created_at).where(
-            Event.user_id == user_id, Event.event_type == challenge.event_type
+        days = await _fetch_qualifying_days(
+            db, user_id=user_id, challenge=challenge, tz=tz, now=now
         )
-        if challenge.start_at is not None:
-            stmt = stmt.where(Event.created_at >= challenge.start_at)
-        if challenge.end_at is not None:
-            stmt = stmt.where(Event.created_at <= challenge.end_at)
-
-        timestamps = (await db.scalars(stmt)).all()
-        days = {ts.astimezone(tz).date() for ts in timestamps}
-        today = datetime.now(tz).date()
+        today = now.astimezone(tz).date()
 
         current, _best = compute_streak(days, today)
         return StrategyResult(
@@ -158,3 +199,25 @@ STRATEGIES: dict[str, ChallengeStrategy] = {
     "count": CountStrategy(),
     "streak": StreakStrategy(),
 }
+
+# Challenge types that are "streak-shaped", derived from the registry rather
+# than hardcoded — used by the `/users/me/streaks` read endpoint to pick
+# which active challenges to report on without a second `type == "streak"`
+# literal anywhere in the codebase.
+STREAK_CHALLENGE_TYPES: frozenset[str] = frozenset(
+    name for name, strategy in STRATEGIES.items() if isinstance(strategy, StreakStrategy)
+)
+
+
+async def compute_user_streak(
+    db: AsyncSession, *, user_id: uuid.UUID, challenge: Challenge
+) -> tuple[int, int]:
+    """`(current_streak, best_streak)`, recomputed directly from source
+    events for the `/users/me/streaks` read endpoint. Not read from the
+    `progress` cache: that table only stores the length-capped
+    `current_value` needed to decide completion, not `best`.
+    """
+    tz = ZoneInfo(get_settings().forum_timezone)
+    now = datetime.now(UTC)
+    days = await _fetch_qualifying_days(db, user_id=user_id, challenge=challenge, tz=tz, now=now)
+    return compute_streak(days, now.astimezone(tz).date())

@@ -43,6 +43,7 @@ async def create_challenge(
         rule_config=body.rule_config,
         reward=body.reward.model_dump(),
         status=body.status,
+        period=body.period,
         start_at=body.start_at,
         end_at=body.end_at,
     )

@@ -6,9 +6,11 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from app.schemas.progress import ProgressOut
 from app.services.strategies import STRATEGIES
 
 ChallengeStatusLiteral = Literal["draft", "active", "expired", "archived"]
+ChallengePeriodLiteral = Literal["one_time", "weekly"]
 
 
 class RewardConfig(BaseModel):
@@ -40,6 +42,7 @@ class ChallengeCreate(BaseModel):
     rule_config: dict[str, Any] = Field(default_factory=dict)
     reward: RewardConfig
     status: ChallengeStatusLiteral = "draft"
+    period: ChallengePeriodLiteral = "one_time"
     start_at: datetime | None = None
     end_at: datetime | None = None
 
@@ -65,6 +68,7 @@ class ChallengeUpdate(BaseModel):
     rule_config: dict[str, Any] | None = None
     reward: RewardConfig | None = None
     status: ChallengeStatusLiteral | None = None
+    period: ChallengePeriodLiteral | None = None
     start_at: datetime | None = None
     end_at: datetime | None = None
 
@@ -80,7 +84,18 @@ class ChallengeOut(BaseModel):
     rule_config: dict[str, Any]
     reward: dict[str, Any]
     status: str
+    period: str
     start_at: datetime | None
     end_at: datetime | None
     created_at: datetime
     updated_at: datetime
+
+
+class ChallengeWithProgressOut(ChallengeOut):
+    """`ChallengeOut` plus the caller's own progress on it — `None` when the
+    user has never triggered a qualifying event, rather than a synthetic
+    zeroed `ProgressOut` (there's no `progress` row until the worker writes
+    one). Used by the `/challenges` and `/challenges/weekly` read endpoints.
+    """
+
+    progress: ProgressOut | None
