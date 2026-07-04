@@ -2,7 +2,7 @@
 
 A Postgres-backed challenge/reward evaluation engine, decoupled from a Vultr Developer Community Forum (Next.js) via an async event pipeline. See `CLAUDE.md` for the architectural invariants and `plan.md` for the phase-by-phase build plan. See `explain.md` for the design rationale (maintained separately — not this file).
 
-> **Status:** Phases 0–4 (foundations, auth & roles, forum domain, event ingestion & idempotency, challenge engine + evaluator + worker). Reward disbursal, progress/streak reads, and the frontend pages are not built yet.
+> **Status:** Backend Phases 0–5 (foundations, auth & roles, forum domain, event ingestion & idempotency, challenge engine + evaluator + worker, reward ledger + progress/streak reads) and Frontend Phase 6 (auth flow, Shell A layout, live-polling weekly widget, error boundary + skeleton primitives). Core pages (feed/detail/create), the charting data-viz, and the profile/rewards ledger are not built yet.
 
 ## Setup
 

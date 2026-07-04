@@ -3,24 +3,21 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth-context";
 
-export default function RootPage() {
+export default function AuthLayout({ children }: { children: React.ReactNode }) {
   const { status } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
     if (status === "authenticated") {
       router.replace("/feed");
-    } else if (status === "unauthenticated") {
-      router.replace("/login");
     }
   }, [status, router]);
 
   return (
-    <div className="flex flex-1 items-center justify-center p-16">
-      <Skeleton className="h-8 w-48" />
+    <div className="flex flex-1 items-center justify-center p-6">
+      <div className="w-full max-w-sm">{children}</div>
     </div>
   );
 }
