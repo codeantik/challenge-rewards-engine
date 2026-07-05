@@ -1,0 +1,34 @@
+name: Seed database
+
+# Manual-only (no schedule) — provisions the admin user + sample challenges
+# via app/scripts/seed.py, idempotent so it's safe to re-run. Exists mainly
+# as a way to run the seed script against the deployed Postgres from a
+# Linux runner with a normal CA trust store, sidestepping local-machine TLS
+# interception (antivirus/corporate proxy) some Windows setups hit when
+# connecting directly. Uses the same DATABASE_URL secret as
+# drain-worker.yml.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      FORUM_TIMEZONE: UTC
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend package
+        working-directory: backend
+        run: pip install -e .
+
+      - name: Run seed script
+        working-directory: backend
+        run: python -m app.scripts.seed
