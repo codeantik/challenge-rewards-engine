@@ -8,10 +8,15 @@
 #
 # Two services share config via `fromGroup` references to the env var group:
 #   - challenge-rewards-api: the web service (migrates on boot, then serves).
-#   - challenge-rewards-worker-drain: a free Cron Job that drains the jobs
-#     queue every 2 minutes, standing in for an always-on Background Worker
-#     (which Render's free tier doesn't offer). See app/worker.py::drain_once
-#     and the README's "Deployment" section for the latency tradeoff.
+#     Runs on the free Web Service plan.
+#   - challenge-rewards-worker-drain: a Cron Job that drains the jobs queue
+#     every 2 minutes, standing in for an always-on Background Worker
+#     ($7/mo minimum). Render has no free plan for Cron Jobs — they're
+#     billed per second of actual run time on the cheapest paid instance
+#     type ("starter"), so a job that runs a few seconds every 2 minutes
+#     costs a small fraction of that instance's hourly rate, not $0. See
+#     app/worker.py::drain_once and the README's "Deployment" section for
+#     the latency tradeoff.
 #
 # Review this against Render's current Blueprint docs before running "New
 # Blueprint Instance" — field names occasionally change.
@@ -62,7 +67,7 @@ services:
     # sequence entirely, just drain whatever jobs are pending and exit.
     dockerCommand: python -m app.worker --once
     schedule: "*/2 * * * *"
-    plan: free
+    plan: starter
     envVars:
       - fromGroup: challenge-rewards-shared
       - key: ENVIRONMENT

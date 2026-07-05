@@ -228,14 +228,18 @@ via an env var group:
 - `challenge-rewards-api`: a free Web Service. The existing Dockerfile CMD
   (`alembic upgrade head && uvicorn ...`) runs migrations on every boot,
   then serves `/api`.
-- `challenge-rewards-worker-drain`: a free Cron Job (`*/2 * * * *`) running
+- `challenge-rewards-worker-drain`: a Cron Job (`*/2 * * * *`) running
   `python -m app.worker --once` (`app/worker.py::drain_once`), which drains
-  every pending job then exits. Render's free tier has no always-on
-  Background Worker (that's a paid Starter instance, ~$7/mo) — a cron drain
-  is the $0 substitute. Trade-off: reward evaluation lands within the cron
-  interval (~2 min) instead of ~1s; bump the schedule or switch the service
-  `type` to `worker` with `dockerCommand` unset (running `run_forever`
-  instead) if that latency matters and the cost is acceptable.
+  every pending job then exits. Render has no free plan for either an
+  always-on Background Worker (~$7/mo minimum) *or* a Cron Job — the cron
+  runs on the cheapest paid instance type (`starter`), but since it's
+  billed per second of actual run time (a few seconds every 2 minutes)
+  rather than a flat monthly rate, the real cost is a small fraction of a
+  dollar, not the full instance price. Trade-off: reward evaluation lands
+  within the cron interval (~2 min) instead of ~1s; bump the schedule or
+  switch the service `type` to `worker` with `dockerCommand` unset (running
+  `run_forever` instead, at the full ~$7/mo) if that latency matters more
+  than the cost.
 
 Push to GitHub, then in the Render dashboard: New → Blueprint → point at
 this repo. Paste the Neon/Supabase connection string into `DATABASE_URL`
