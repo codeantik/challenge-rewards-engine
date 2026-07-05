@@ -43,12 +43,11 @@ services:
         value: production
       # Comma-free JSON list, exact origins the frontend is served from.
       - key: CORS_ORIGINS
-        value: '["https://your-app.vercel.app"]'
+        value: '["https://challenge-rewards-engine.vercel.app"]'
       # Additive to CORS_ORIGINS — matches Vercel's per-PR preview URLs
-      # (https://<project>-<hash>-<team>.vercel.app). Update the project
-      # name below to match your Vercel project.
+      # (https://challenge-rewards-engine-<hash>-<team>.vercel.app).
       - key: CORS_ORIGIN_REGEX
-        value: "https://your-app-.*\\.vercel\\.app"
+        value: "https://challenge-rewards-engine-.*\\.vercel\\.app"
       - key: EVENT_RATE_LIMIT_CAPACITY
         value: "20"
       - key: EVENT_RATE_LIMIT_WINDOW_SECONDS
