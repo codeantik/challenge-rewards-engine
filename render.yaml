@@ -6,7 +6,7 @@
 # when Render prompts for it (`sync: false` fields are set manually in the
 # dashboard, not committed here).
 #
-# Two services share config via the env var group:
+# Two services share config via `fromGroup` references to the env var group:
 #   - challenge-rewards-api: the web service (migrates on boot, then serves).
 #   - challenge-rewards-worker-drain: a free Cron Job that drains the jobs
 #     queue every 2 minutes, standing in for an always-on Background Worker
@@ -36,9 +36,8 @@ services:
     dockerContext: ./backend
     plan: free
     healthCheckPath: /api/health
-    envVarGroups:
-      - challenge-rewards-shared
     envVars:
+      - fromGroup: challenge-rewards-shared
       - key: ENVIRONMENT
         value: production
       # Comma-free JSON list, exact origins the frontend is served from.
@@ -64,8 +63,7 @@ services:
     dockerCommand: python -m app.worker --once
     schedule: "*/2 * * * *"
     plan: free
-    envVarGroups:
-      - challenge-rewards-shared
     envVars:
+      - fromGroup: challenge-rewards-shared
       - key: ENVIRONMENT
         value: production
