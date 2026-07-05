@@ -211,11 +211,50 @@ endpoint). `ruff check .` and `mypy app` (strict) are both clean.
 
 ## Deployment
 
-Not deployed to a public URL for this submission — reviewers run it locally
-via Docker Compose (above), which is a genuine 5-minute path from clone to a
-disbursed reward. Every service (Dockerfiles, `.env.example`, the seed
-script) is deploy-ready; wiring it to a host is a config exercise, not a code
-change, if that's wanted later.
+Three pieces, three homes — Postgres, backend/worker, and frontend each
+deploy independently:
+
+**1. Postgres** — a managed provider outside Render (Neon or Supabase; both
+have a free tier that doesn't expire, unlike Render's 90-day free Postgres).
+Create a database, copy its connection string as-is — a plain
+`postgres://...?sslmode=require` URL is fine.
+`app/core/config.py` rewrites the scheme to `postgresql+asyncpg://` and
+lifts `sslmode` into an asyncpg `ssl=True` connect arg automatically, so
+nothing needs hand-editing.
+
+**2. Backend + worker (Render)** — `render.yaml` at the repo root is a
+Render Blueprint defining two services that share `DATABASE_URL`/`JWT_SECRET`
+via an env var group:
+- `challenge-rewards-api`: a free Web Service. The existing Dockerfile CMD
+  (`alembic upgrade head && uvicorn ...`) runs migrations on every boot,
+  then serves `/api`.
+- `challenge-rewards-worker-drain`: a free Cron Job (`*/2 * * * *`) running
+  `python -m app.worker --once` (`app/worker.py::drain_once`), which drains
+  every pending job then exits. Render's free tier has no always-on
+  Background Worker (that's a paid Starter instance, ~$7/mo) — a cron drain
+  is the $0 substitute. Trade-off: reward evaluation lands within the cron
+  interval (~2 min) instead of ~1s; bump the schedule or switch the service
+  `type` to `worker` with `dockerCommand` unset (running `run_forever`
+  instead) if that latency matters and the cost is acceptable.
+
+Push to GitHub, then in the Render dashboard: New → Blueprint → point at
+this repo. Paste the Neon/Supabase connection string into `DATABASE_URL`
+when prompted (the blueprint marks it `sync: false` — manual, not
+committed). Update `CORS_ORIGINS`/`CORS_ORIGIN_REGEX` in `render.yaml` to
+match the actual Vercel domain before or after the first deploy.
+
+**3. Frontend (Vercel)** — import the repo, set **Root Directory** to
+`frontend` in the project settings (Vercel auto-detects Next.js from
+there), and set `NEXT_PUBLIC_API_BASE_URL` to the Render web service's URL
+plus `/api` (e.g. `https://challenge-rewards-api.onrender.com/api`) for
+Production and Preview. `CORS_ORIGIN_REGEX` on the backend
+(`https://your-app-.*\.vercel\.app`) is what lets PR preview deployments —
+which get a fresh Vercel subdomain each time — reach the API without
+re-deploying the backend per PR.
+
+Note Render's free Web Service also spins down after 15 minutes idle and
+cold-starts (~30-50s) on the next request — expected on a free-tier demo,
+not a bug.
 
 ## Bonus features
 

@@ -3,7 +3,7 @@ from logging.config import fileConfig
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
-from sqlalchemy.ext.asyncio import async_engine_from_config
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from alembic import context
 from app.core.config import get_settings
@@ -66,11 +66,13 @@ async def run_async_migrations() -> None:
     and associate a connection with the context.
 
     """
-
-    connectable = async_engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
+    settings = get_settings()
+    # `async_engine_from_config` has no way to pass `connect_args`, so build
+    # the engine directly — needed to forward `ssl=True` to asyncpg for
+    # managed Postgres providers that require TLS (see app/core/config.py).
+    connect_args = {"ssl": True} if settings.database_ssl else {}
+    connectable = create_async_engine(
+        settings.database_url, poolclass=pool.NullPool, connect_args=connect_args
     )
 
     async with connectable.connect() as connection:

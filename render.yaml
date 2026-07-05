@@ -1,0 +1,71 @@
+# Render Blueprint for the backend half of this app (frontend deploys to
+# Vercel separately — see README "Deployment"). Postgres itself is NOT
+# defined here: it lives on an external provider (e.g. Neon, Supabase) so
+# the database survives independently of Render's free-tier 90-day Postgres
+# expiry. Paste that provider's connection string into DATABASE_URL below
+# when Render prompts for it (`sync: false` fields are set manually in the
+# dashboard, not committed here).
+#
+# Two services share config via the env var group:
+#   - challenge-rewards-api: the web service (migrates on boot, then serves).
+#   - challenge-rewards-worker-drain: a free Cron Job that drains the jobs
+#     queue every 2 minutes, standing in for an always-on Background Worker
+#     (which Render's free tier doesn't offer). See app/worker.py::drain_once
+#     and the README's "Deployment" section for the latency tradeoff.
+#
+# Review this against Render's current Blueprint docs before running "New
+# Blueprint Instance" — field names occasionally change.
+
+envVarGroups:
+  - name: challenge-rewards-shared
+    envVars:
+      - key: DATABASE_URL
+        sync: false # paste your Neon/Supabase connection string here
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: FORUM_TIMEZONE
+        value: UTC
+
+services:
+  - type: web
+    name: challenge-rewards-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /api/health
+    envVarGroups:
+      - challenge-rewards-shared
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      # Comma-free JSON list, exact origins the frontend is served from.
+      - key: CORS_ORIGINS
+        value: '["https://your-app.vercel.app"]'
+      # Additive to CORS_ORIGINS — matches Vercel's per-PR preview URLs
+      # (https://<project>-<hash>-<team>.vercel.app). Update the project
+      # name below to match your Vercel project.
+      - key: CORS_ORIGIN_REGEX
+        value: "https://your-app-.*\\.vercel\\.app"
+      - key: EVENT_RATE_LIMIT_CAPACITY
+        value: "20"
+      - key: EVENT_RATE_LIMIT_WINDOW_SECONDS
+        value: "60"
+
+  - type: cron
+    name: challenge-rewards-worker-drain
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    # Overrides the Dockerfile's CMD: skip the migration + uvicorn boot
+    # sequence entirely, just drain whatever jobs are pending and exit.
+    dockerCommand: python -m app.worker --once
+    schedule: "*/2 * * * *"
+    plan: free
+    envVarGroups:
+      - challenge-rewards-shared
+    envVars:
+      - key: ENVIRONMENT
+        value: production

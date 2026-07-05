@@ -18,7 +18,11 @@ _sessionmaker: async_sessionmaker[AsyncSession] | None = None
 def get_engine() -> AsyncEngine:
     global _engine
     if _engine is None:
-        _engine = create_async_engine(get_settings().database_url, pool_pre_ping=True)
+        settings = get_settings()
+        connect_args = {"ssl": True} if settings.database_ssl else {}
+        _engine = create_async_engine(
+            settings.database_url, pool_pre_ping=True, connect_args=connect_args
+        )
     return _engine
 
 

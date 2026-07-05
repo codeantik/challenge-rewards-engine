@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -86,12 +87,43 @@ async def claim_and_process_one(db: AsyncSession) -> bool:
 async def run_forever(poll_interval: float = POLL_INTERVAL_SECONDS) -> None:
     sessionmaker = get_sessionmaker()
     while True:
-        async with sessionmaker() as db:
-            claimed = await claim_and_process_one(db)
+        try:
+            async with sessionmaker() as db:
+                claimed = await claim_and_process_one(db)
+        except Exception:
+            # A transient error here (e.g. the DB not reachable yet, or
+            # migrations still running against a fresh deploy) shouldn't
+            # crash the whole process — a paid Render Background Worker
+            # restarts a crashed process noisily; backing off and retrying
+            # is quieter and self-heals once the DB is ready.
+            logger.exception("worker poll iteration failed; backing off")
+            claimed = False
         if not claimed:
             await asyncio.sleep(poll_interval)
 
 
+async def drain_once() -> int:
+    """Process every currently-pending job, then return — no polling sleep.
+
+    Used by the free-tier deployment path: a Render Cron Job invokes this
+    (`python -m app.worker --once`) every couple of minutes instead of
+    paying for an always-on Background Worker. Trades ~1s evaluation
+    latency for up-to-the-cron-interval latency; see README "Deployment".
+    """
+    sessionmaker = get_sessionmaker()
+    processed = 0
+    while True:
+        async with sessionmaker() as db:
+            claimed = await claim_and_process_one(db)
+        if not claimed:
+            return processed
+        processed += 1
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    asyncio.run(run_forever())
+    if "--once" in sys.argv:
+        n = asyncio.run(drain_once())
+        logger.info("drain complete: processed %d job(s)", n)
+    else:
+        asyncio.run(run_forever())
