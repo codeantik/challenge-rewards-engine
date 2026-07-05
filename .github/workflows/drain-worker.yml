@@ -1,0 +1,42 @@
+name: Drain evaluation queue
+
+# Stands in for an always-on Background Worker (app/worker.py::run_forever)
+# without paying for one: Render has no free plan for a worker or a Cron
+# Job, but GitHub Actions scheduled workflows are free on a public repo.
+# This just runs the exact same drain_once() the paid path would use
+# (app/worker.py --once), on GitHub's runner instead of Render's, polling
+# the same Postgres `jobs` outbox table. Evaluation latency becomes "up to
+# 5 minutes" instead of ~1s — see README "Deployment" for the tradeoff.
+#
+# GitHub won't run a schedule more often than every 5 minutes, and may
+# delay it further under load — this is a best-effort substitute, not a
+# durability guarantee. It also silently stops firing if the repo goes 60
+# days without any activity (a GitHub Actions platform limit); re-push or
+# re-enable the workflow from the Actions tab if that happens.
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  drain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      FORUM_TIMEZONE: UTC
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install backend package
+        working-directory: backend
+        run: pip install -e .
+
+      - name: Drain pending jobs
+        working-directory: backend
+        run: python -m app.worker --once

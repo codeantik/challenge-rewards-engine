@@ -1,37 +1,26 @@
-# Render Blueprint for the backend half of this app (frontend deploys to
-# Vercel separately — see README "Deployment"). Postgres itself is NOT
-# defined here: it lives on an external provider (e.g. Neon, Supabase) so
-# the database survives independently of Render's free-tier 90-day Postgres
-# expiry. Paste that provider's connection string into DATABASE_URL below
-# when Render prompts for it (`sync: false` fields are set manually in the
-# dashboard, not committed here).
+# Render Blueprint for the API half of this app (frontend deploys to Vercel
+# separately — see README "Deployment"). Postgres itself is NOT defined
+# here: it lives on an external free-tier provider (Neon or Supabase) so the
+# database survives independently of Render's 90-day free Postgres expiry.
+# Paste that provider's connection string into DATABASE_URL below when
+# Render prompts for it (`sync: false` — set manually in the dashboard, not
+# committed here).
 #
-# Two services share config via `fromGroup` references to the env var group:
-#   - challenge-rewards-api: the web service (migrates on boot, then serves).
-#     Runs on the free Web Service plan.
-#   - challenge-rewards-worker-drain: a Cron Job that drains the jobs queue
-#     every 2 minutes, standing in for an always-on Background Worker
-#     ($7/mo minimum). Render has no free plan for Cron Jobs — they're
-#     billed per second of actual run time on the cheapest paid instance
-#     type ("starter"), so a job that runs a few seconds every 2 minutes
-#     costs a small fraction of that instance's hourly rate, not $0. See
-#     app/worker.py::drain_once and the README's "Deployment" section for
-#     the latency tradeoff.
+# Just one service: challenge-rewards-api, a free Web Service. The
+# Dockerfile CMD (`alembic upgrade head && uvicorn ...`) migrates on every
+# boot, then serves `/api`.
+#
+# The evaluation worker deliberately is NOT a second Render service —
+# Render has no free plan for either an always-on Background Worker
+# (~$7/mo) or a Cron Job (paid instance type + Render wants a card on file
+# even though the per-second billing would be pennies). Instead a GitHub
+# Actions scheduled workflow (`.github/workflows/drain-worker.yml`) runs
+# `python -m app.worker --once` every 5 minutes on GitHub's free runners —
+# genuinely $0, no payment method anywhere. See that workflow file and the
+# README's "Deployment" section for the latency tradeoff this implies.
 #
 # Review this against Render's current Blueprint docs before running "New
 # Blueprint Instance" — field names occasionally change.
-
-envVarGroups:
-  - name: challenge-rewards-shared
-    envVars:
-      - key: DATABASE_URL
-        sync: false # paste your Neon/Supabase connection string here
-      - key: JWT_SECRET
-        generateValue: true
-      - key: JWT_ALGORITHM
-        value: HS256
-      - key: FORUM_TIMEZONE
-        value: UTC
 
 services:
   - type: web
@@ -42,7 +31,14 @@ services:
     plan: free
     healthCheckPath: /api/health
     envVars:
-      - fromGroup: challenge-rewards-shared
+      - key: DATABASE_URL
+        sync: false # paste your Neon/Supabase connection string here
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_ALGORITHM
+        value: HS256
+      - key: FORUM_TIMEZONE
+        value: UTC
       - key: ENVIRONMENT
         value: production
       # Comma-free JSON list, exact origins the frontend is served from.
@@ -57,18 +53,3 @@ services:
         value: "20"
       - key: EVENT_RATE_LIMIT_WINDOW_SECONDS
         value: "60"
-
-  - type: cron
-    name: challenge-rewards-worker-drain
-    runtime: docker
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
-    # Overrides the Dockerfile's CMD: skip the migration + uvicorn boot
-    # sequence entirely, just drain whatever jobs are pending and exit.
-    dockerCommand: python -m app.worker --once
-    schedule: "*/2 * * * *"
-    plan: starter
-    envVars:
-      - fromGroup: challenge-rewards-shared
-      - key: ENVIRONMENT
-        value: production

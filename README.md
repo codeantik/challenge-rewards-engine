@@ -214,40 +214,43 @@ endpoint). `ruff check .` and `mypy app` (strict) are both clean.
 Three pieces, three homes — Postgres, backend/worker, and frontend each
 deploy independently:
 
-**1. Postgres** — a managed provider outside Render (Neon or Supabase; both
-have a free tier that doesn't expire, unlike Render's 90-day free Postgres).
-Create a database, copy its connection string as-is — a plain
-`postgres://...?sslmode=require` URL is fine.
+**1. Postgres** — Supabase or Neon; both have a free Postgres tier that
+doesn't expire, unlike Render's (deleted after 90 days). Create a project,
+copy its connection string as-is — a plain `postgres://...?sslmode=require`
+URL is fine (Supabase: Project Settings → Database → Connection string →
+URI; use the **Session pooler** one, since a serverless-style deploy opens
+more short-lived connections than a direct connection slot budget likes).
 `app/core/config.py` rewrites the scheme to `postgresql+asyncpg://` and
 lifts `sslmode` into an asyncpg `ssl=True` connect arg automatically, so
 nothing needs hand-editing.
 
-**2. Backend + worker (Render)** — `render.yaml` at the repo root is a
-Render Blueprint defining two services that share `DATABASE_URL`/`JWT_SECRET`
-via an env var group:
-- `challenge-rewards-api`: a free Web Service. The existing Dockerfile CMD
-  (`alembic upgrade head && uvicorn ...`) runs migrations on every boot,
-  then serves `/api`.
-- `challenge-rewards-worker-drain`: a Cron Job (`*/2 * * * *`) running
-  `python -m app.worker --once` (`app/worker.py::drain_once`), which drains
-  every pending job then exits. Render has no free plan for either an
-  always-on Background Worker (~$7/mo minimum) *or* a Cron Job — the cron
-  runs on the cheapest paid instance type (`starter`), but since it's
-  billed per second of actual run time (a few seconds every 2 minutes)
-  rather than a flat monthly rate, the real cost is a small fraction of a
-  dollar, not the full instance price. Trade-off: reward evaluation lands
-  within the cron interval (~2 min) instead of ~1s; bump the schedule or
-  switch the service `type` to `worker` with `dockerCommand` unset (running
-  `run_forever` instead, at the full ~$7/mo) if that latency matters more
-  than the cost.
+**2. Backend (Render)** — `render.yaml` at the repo root is a Render
+Blueprint defining one free Web Service, `challenge-rewards-api`. The
+existing Dockerfile CMD (`alembic upgrade head && uvicorn ...`) runs
+migrations on every boot, then serves `/api`. Push to GitHub, then in the
+Render dashboard: New → Blueprint → point at this repo. Paste the
+Supabase/Neon connection string into `DATABASE_URL` when prompted (the
+blueprint marks it `sync: false` — manual, not committed). Update
+`CORS_ORIGINS`/`CORS_ORIGIN_REGEX` in `render.yaml` to match the actual
+Vercel domain before or after the first deploy. No payment method needed —
+this is Render's genuinely free Web Service plan.
 
-Push to GitHub, then in the Render dashboard: New → Blueprint → point at
-this repo. Paste the Neon/Supabase connection string into `DATABASE_URL`
-when prompted (the blueprint marks it `sync: false` — manual, not
-committed). Update `CORS_ORIGINS`/`CORS_ORIGIN_REGEX` in `render.yaml` to
-match the actual Vercel domain before or after the first deploy.
+**3. Worker (GitHub Actions, not Render)** — Render has no free plan for
+either an always-on Background Worker (~$7/mo) or a Cron Job (Render wants
+a card on file for a paid instance type even though the per-second billing
+would be pennies). Instead, `.github/workflows/drain-worker.yml` runs
+`python -m app.worker --once` (`app/worker.py::drain_once`, which drains
+every pending job then exits) on a GitHub Actions schedule every 5
+minutes — free and unlimited on this public repo, no payment method
+anywhere. Add the same Postgres connection string as a repo secret:
+Settings → Secrets and variables → Actions → New repository secret →
+`DATABASE_URL`. Trade-off: reward evaluation lands within the schedule
+interval (up to ~5 min, GitHub's minimum, sometimes delayed further under
+platform load) instead of the ~1s `run_forever` gives locally. If that
+latency matters more than avoiding a card on file, switch to a paid Render
+Background Worker running `app/worker.py` with no `--once` flag instead.
 
-**3. Frontend (Vercel)** — import the repo, set **Root Directory** to
+**4. Frontend (Vercel)** — import the repo, set **Root Directory** to
 `frontend` in the project settings (Vercel auto-detects Next.js from
 there), and set `NEXT_PUBLIC_API_BASE_URL` to the Render web service's URL
 plus `/api` (e.g. `https://challenge-rewards-api.onrender.com/api`) for
