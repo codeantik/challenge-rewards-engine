@@ -1,6 +1,6 @@
 "use client";
 
-import { LogOutIcon, MessageSquareIcon, TrophyIcon, UserIcon } from "lucide-react";
+import { LogOutIcon, MessageSquareIcon, ShieldIcon, TrophyIcon, UserIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -33,11 +33,14 @@ const NAV_ITEMS = [
   { href: "/profile", label: "Profile", icon: UserIcon },
 ];
 
+const ADMIN_NAV_ITEM = { href: "/admin/challenges", label: "Admin", icon: ShieldIcon };
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, status, logout } = useAuth();
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const navItems = user?.role === "admin" ? [...NAV_ITEMS, ADMIN_NAV_ITEM] : NAV_ITEMS;
 
   return (
     <aside className="border-border bg-sidebar text-sidebar-foreground flex h-full w-16 shrink-0 flex-col justify-between border-r p-3 md:w-60 md:p-4">
@@ -51,7 +54,7 @@ export function Sidebar() {
           </span>
         </Link>
         <nav className="flex flex-col gap-1">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const active = pathname.startsWith(item.href);
             const Icon = item.icon;
             return (

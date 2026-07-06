@@ -13,6 +13,7 @@ exceptions become responses, so no route needs its own try/except-to-JSON.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from typing import Any
 
@@ -21,6 +22,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.requests import Request
+
+from app.core.config import get_settings
 
 _CODE_BY_STATUS: dict[int, str] = {
     400: "BAD_REQUEST",
@@ -67,6 +70,36 @@ def _sanitize_validation_errors(errors: Sequence[dict[str, Any]]) -> list[dict[s
             err = {**err, "ctx": {**ctx, "error": str(ctx["error"])}}
         sanitized.append(err)
     return sanitized
+
+
+def _cors_headers_for_unhandled_exception(request: Request) -> dict[str, str]:
+    """Starlette's `@app.exception_handler(Exception)` — unlike the other
+    handlers in this file — is invoked by `ServerErrorMiddleware`, which sits
+    *outside* `CORSMiddleware` in the stack built by `app/main.py` (see
+    Starlette's `Starlette.build_middleware_stack`). So a genuinely unhandled
+    exception never passes back through `CORSMiddleware`, and the browser
+    reports the resulting 500 as an opaque CORS failure instead of a readable
+    error — defeating the whole point of the structured error envelope for
+    exactly the worst-case error path. `AppError`/`RequestValidationError`/
+    `StarletteHTTPException` below are all raised as expected exceptions
+    handled by `ExceptionMiddleware`, which *is* inside `CORSMiddleware`, so
+    only this one handler needs to replicate the origin check by hand.
+    """
+    origin = request.headers.get("origin")
+    if origin is None:
+        return {}
+    settings = get_settings()
+    allowed = origin in settings.cors_origins or (
+        settings.cors_origin_regex is not None
+        and re.fullmatch(settings.cors_origin_regex, origin) is not None
+    )
+    if not allowed:
+        return {}
+    return {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Credentials": "true",
+        "Vary": "Origin",
+    }
 
 
 def _error_body(code: str, message: str, request_id: str, details: Any = None) -> dict[str, Any]:
@@ -122,5 +155,8 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content=_error_body("INTERNAL_ERROR", "an unexpected error occurred", request_id),
-            headers={"X-Request-Id": request_id},
+            headers={
+                "X-Request-Id": request_id,
+                **_cors_headers_for_unhandled_exception(request),
+            },
         )

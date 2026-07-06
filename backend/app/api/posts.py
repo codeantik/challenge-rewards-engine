@@ -23,7 +23,6 @@ from app.models.post import Post
 from app.schemas.posts import (
     CommentCreate,
     CommentOut,
-    MarkSolutionRequest,
     PostCreate,
     PostDetailOut,
     PostOut,
@@ -138,9 +137,9 @@ async def create_comment(
     return Envelope(data=CommentOut.model_validate(comment))
 
 
-@router.post("/{post_id}/solution", response_model=Envelope[PostOut])
+@router.patch("/{post_id}/solution/{comment_id}", response_model=Envelope[PostOut])
 async def mark_solution(
-    post_id: uuid.UUID, body: MarkSolutionRequest, user: CurrentUser, db: DbSession
+    post_id: uuid.UUID, comment_id: uuid.UUID, user: CurrentUser, db: DbSession
 ) -> Envelope[PostOut]:
     post = await db.get(Post, post_id)
     if post is None:
@@ -148,7 +147,7 @@ async def mark_solution(
     if post.author_id != user.id:
         raise AppError("FORBIDDEN", "only the post owner can mark a solution", status_code=403)
 
-    comment = await db.get(Comment, body.comment_id)
+    comment = await db.get(Comment, comment_id)
     if comment is None or comment.post_id != post_id:
         raise _not_found("comment")
 

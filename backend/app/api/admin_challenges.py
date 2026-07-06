@@ -20,6 +20,7 @@ from app.models.challenge import Challenge, ChallengeStatus
 from app.schemas.challenges import (
     ChallengeCreate,
     ChallengeOut,
+    ChallengeStatusLiteral,
     ChallengeUpdate,
     validate_challenge_config,
 )
@@ -54,8 +55,14 @@ async def create_challenge(
 
 
 @router.get("", response_model=Envelope[list[ChallengeOut]])
-async def list_challenges(_admin: AdminUser, db: DbSession) -> Envelope[list[ChallengeOut]]:
+async def list_challenges(
+    _admin: AdminUser,
+    db: DbSession,
+    status: ChallengeStatusLiteral | None = None,
+) -> Envelope[list[ChallengeOut]]:
     stmt = select(Challenge).order_by(Challenge.created_at.desc())
+    if status is not None:
+        stmt = stmt.where(Challenge.status == status)
     challenges = (await db.scalars(stmt)).all()
     return Envelope(data=[ChallengeOut.model_validate(c) for c in challenges])
 

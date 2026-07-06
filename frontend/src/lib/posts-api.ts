@@ -72,9 +72,8 @@ export function markSolution(
   postId: string,
   commentId: string,
 ): Promise<PostSummary> {
-  return apiRequest<PostSummary>(`/posts/${postId}/solution`, {
-    method: "POST",
-    body: { comment_id: commentId },
+  return apiRequest<PostSummary>(`/posts/${postId}/solution/${commentId}`, {
+    method: "PATCH",
     token,
   });
 }

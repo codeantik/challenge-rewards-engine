@@ -43,7 +43,3 @@ class CommentOut(BaseModel):
 
 class PostDetailOut(PostOut):
     comments: list[CommentOut]
-
-
-class MarkSolutionRequest(BaseModel):
-    comment_id: uuid.UUID

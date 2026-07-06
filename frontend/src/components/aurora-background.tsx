@@ -143,20 +143,25 @@ export function AuroraBackground({
     resizeObserver.observe(parent);
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const clock = new THREE.Clock();
+    // `THREE.Clock` is deprecated in favor of `Timer`, which needs an
+    // explicit `update()` per frame (fed the rAF timestamp) before
+    // `getElapsed()` reflects it — unlike `Clock`, which tracked time
+    // internally on every `getElapsedTime()` call.
+    const timer = new THREE.Timer();
     let frameId = 0;
     let disposed = false;
 
     function renderFrame() {
-      uniforms.uTime.value = clock.getElapsedTime();
+      uniforms.uTime.value = timer.getElapsed();
       uniforms.uColorA.value.set(paletteRef.current[0]);
       uniforms.uColorB.value.set(paletteRef.current[1]);
       uniforms.uColorC.value.set(paletteRef.current[2]);
       renderer.render(scene, camera);
     }
 
-    function loop() {
+    function loop(timestamp?: number) {
       if (disposed || document.hidden) return;
+      timer.update(timestamp);
       renderFrame();
       if (!reduceMotion) frameId = requestAnimationFrame(loop);
     }

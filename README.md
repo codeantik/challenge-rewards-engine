@@ -107,14 +107,19 @@ Notable ones beyond the obvious (`DATABASE_URL`, `JWT_SECRET`):
 
 ## How to provision challenges
 
-Two ways:
+Three ways:
 
 1. **Seed script** (`python -m app.scripts.seed` / the Docker Compose
    equivalent above) — creates one admin user and five sample challenges
    covering every axis the engine supports: `count` vs `streak` type,
    `one_time` vs `weekly` period, and a non-`points` reward type (`badge`)
    to show `reward.type` is a free-form string, not a fixed enum.
-2. **Admin API directly**, once you have an admin token (`POST /api/auth/login`
+2. **Admin console** (Phase 10) — log in as an admin and an "Admin" link
+   appears in the sidebar (`/admin/challenges`, gated client-side on
+   `user.role === "admin"`, same as the seeded admin's account). List, create,
+   edit, and archive challenges through a form that mirrors
+   `ChallengeCreate`/`ChallengeUpdate` field-for-field — no curl required.
+3. **Admin API directly**, once you have an admin token (`POST /api/auth/login`
    as the seeded admin, or promote your own user — see "Notes" below):
 
    ```bash
@@ -270,11 +275,15 @@ In priority order per `plan.md`:
 1. **Unit tests** — done throughout (not deferred to this phase): streak
    logic (`tests/test_strategies.py`), event idempotency
    (`tests/test_events.py`), reward disbursal exactly-once
-   (`tests/test_rewards.py`), plus admin/auth/posts/evaluator/worker
-   coverage.
+   (`tests/test_rewards.py`), a CORS regression (`tests/test_errors.py`),
+   plus admin/auth/posts/evaluator/worker coverage.
 2. **Rate limiting on `/api/events`** — done, see above.
-3. **Leaderboard page** — not built (descoped for this submission).
-4. **Multiple reward types** — `reward.type` was already a free-form string
+3. **Admin console UI** (Phase 10) — done: `/admin/challenges` (list,
+   create, edit, archive), gated to `role === "admin"`. Previously the admin
+   CRUD API existed but had no frontend, so provisioning meant curl or the
+   seed script.
+4. **Leaderboard page** — not built (descoped for this submission).
+5. **Multiple reward types** — `reward.type` was already a free-form string
    from Phase 4 (not a `points`-only enum), so "points" and "badge" rewards
    already coexist in the ledger and the Profile page's summary endpoint
    groups by `reward_type`; a dedicated UI for a third type wasn't built.

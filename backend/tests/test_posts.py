@@ -166,17 +166,15 @@ async def test_mark_solution_owner_only(client: AsyncClient) -> None:
     )
     comment_id = comment.json()["data"]["id"]
 
-    forbidden = await client.post(
-        f"/api/posts/{post_id}/solution",
-        json={"comment_id": comment_id},
+    forbidden = await client.patch(
+        f"/api/posts/{post_id}/solution/{comment_id}",
         headers=other_headers,
     )
     assert forbidden.status_code == 403
     assert forbidden.json()["error"]["code"] == "FORBIDDEN"
 
-    ok = await client.post(
-        f"/api/posts/{post_id}/solution",
-        json={"comment_id": comment_id},
+    ok = await client.patch(
+        f"/api/posts/{post_id}/solution/{comment_id}",
         headers=owner_headers,
     )
     assert ok.status_code == 200, ok.text
@@ -202,9 +200,8 @@ async def test_mark_solution_rejects_comment_from_another_post(client: AsyncClie
     )
     comment_on_b_id = comment_on_b.json()["data"]["id"]
 
-    response = await client.post(
-        f"/api/posts/{post_a_id}/solution",
-        json={"comment_id": comment_on_b_id},
+    response = await client.patch(
+        f"/api/posts/{post_a_id}/solution/{comment_on_b_id}",
         headers=headers,
     )
     assert response.status_code == 404

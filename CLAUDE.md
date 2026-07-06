@@ -21,7 +21,7 @@ This file is the contract every later phase must respect. If a change would viol
 | `post_created`    | `POST /posts`                        | a user created a forum post               |
 | `post_viewed`     | `GET /posts/{id}` (detail view)      | a user viewed a post's detail page        |
 | `comment_posted`  | `POST /posts/{id}/comments`          | a user commented on a post                |
-| `solution_marked` | `POST /posts/{id}/solution`          | the post owner marked a comment as the solution |
+| `solution_marked` | `PATCH /posts/{id}/solution/{commentId}` | the post owner marked a comment as the solution |
 
 Every event row carries at minimum: `event_id` (client-generated, unique), `event_type`, `user_id`, `payload` (JSONB), `created_at`.
 

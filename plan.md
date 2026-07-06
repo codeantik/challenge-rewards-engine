@@ -150,6 +150,114 @@
 
 ---
 
+## Phase 10 — Admin console UI  *(post-submission follow-up)*
+
+**Goal:** Close the one real gap left after Phase 9: the admin challenge CRUD
+API (Phase 4) had no frontend, so provisioning meant curl or the seed script.
+
+- `/admin/challenges` route group (Next.js), gated client-side on
+  `user.role === "admin"` (a second layout stacked on the existing auth gate
+  — see `app/(app)/admin/layout.tsx`), with an "Admin" link in the sidebar
+  that only renders for admins.
+- List page: every challenge regardless of status, with inline "Activate"
+  (draft → active), "Edit", and "Archive" (with a confirm dialog) actions.
+- Create (`/admin/challenges/new`) and edit (`/admin/challenges/[id]/edit`)
+  pages share one `ChallengeForm` component covering every field
+  `ChallengeCreate`/`ChallengeUpdate` accept: name, description, type
+  (count/streak), event type, the type-dependent rule value
+  (target/length), reward type + amount, status, period, and optional
+  start/end dates.
+- No backend changes — the Phase 4 admin API was already complete; this
+  phase is frontend-only.
+- **Incidental fix**: live-testing this surfaced a real, pre-existing bug —
+  Starlette routes a bare `Exception` through `ServerErrorMiddleware`, which
+  sits *outside* `CORSMiddleware`, so every unhandled 500 (from any endpoint,
+  not just the new admin ones) reached the browser with no CORS headers and
+  was reported as an opaque "CORS policy" failure instead of a readable
+  error. Fixed in `app/core/errors.py` by replicating the origin check by
+  hand for that one handler; regression-tested in `tests/test_errors.py`.
+- **Two more fixes found on a second pass** (comparing against the assignment's
+  literal API contract + a real-device layout check): `GET /admin/challenges`
+  didn't support the spec's optional `?status=` filter — added in
+  `app/api/admin_challenges.py`. And the weekly-widget right rail was
+  `hidden ... lg:flex` with **no fallback**, so it silently disappeared below
+  a 1024px viewport (any laptop window not maximized, any tablet) — violates
+  the "present on all 5 pages" requirement for a large chunk of real screens.
+  Fixed in `components/shell/app-shell.tsx`: the same widget now also renders
+  inline above the page content, shown only via `lg:hidden` (the rail version
+  is `hidden lg:flex`) — both mounted, CSS picks one, and `useWeeklyChallenge`
+  is one shared query so this isn't a double fetch.
+
+**Done when:** an admin can create, edit, activate, and archive a challenge
+entirely through the UI, with no curl required; the weekly widget is visible
+on every route at every viewport width.
+**explain.md note:** the two-layout gating approach, the CORS/exception-
+handler ordering bug, and the responsive-visibility bug.
+
+---
+
+## Phase 11 — Leaderboard + a second reward-type UI  *(not built — priority order below)*
+
+**Goal:** The bonus items the assignment spec lists explicitly
+(`GET /leaderboard`, "multiple reward types with distinct disbursal
+handling") that Phase 9 descoped for the original submission.
+
+Priority, highest first:
+
+1. **Leaderboard** (`GET /api/leaderboard` — ranked by `total_points`,
+   paginated, per the spec's own contract) + a frontend page. This is the
+   only bonus item with an explicit endpoint contract in the spec, so it's
+   the more "graded" of the two. A `GROUP BY user_id` over `rewards`, same
+   shape as the existing `/users/me/rewards/summary` but across all users;
+   frontend page reuses the Profile page's card/skeleton conventions.
+2. **A dedicated UI for a second reward type, with distinct disbursal
+   handling.** `reward.type` already supports arbitrary strings end-to-end
+   (ledger, summary endpoint, admin form) — that satisfies "support at least
+   one reward type" and lets "points"/"badge" coexist, but disbursal itself
+   doesn't yet *do* anything differently per type (it's the same insert
+   regardless of `reward_type`). The spec's bonus explicitly asks for
+   "distinct disbursal handling" — e.g. a `coupon` type that also generates
+   a redemption code — plus a real badges UI (icons per `reward_type`, not
+   just a count) on the Profile page.
+
+Neither is started; both are additive (new read endpoints + new pages) and
+don't touch any existing invariant.
+
+---
+
+## Phase 12 — API contract conformance check  *(mostly resolved)*
+
+**Goal:** A second pass diffing the actual routes against the assignment's
+literal API contract table turned up one deliberate-looking deviation —
+flagged per CLAUDE.md's own rule ("stop and flag it rather than working
+around it silently") and resolved by explicit user decision rather than a
+silent pick.
+
+- **Mark-solution route shape — resolved: conform to the spec.** Was
+  `POST /posts/{id}/solution` with `comment_id` in the body (CLAUDE.md's
+  documented contract since Phase 0). Changed to the spec's literal
+  `PATCH /posts/{id}/solution/{comment_id}`, no body. Touched: the route
+  (`app/api/posts.py`), CLAUDE.md's event catalog, the now-unused
+  `MarkSolutionRequest` schema (deleted), the frontend caller
+  (`lib/posts-api.ts::markSolution`), and both mark-solution tests
+  (`tests/test_posts.py`). Full suite re-verified against a live DB after the
+  change: **65/65 passing** (63 pre-existing + 2 CORS regression tests, the
+  latter needed their own `ASGITransport(..., raise_app_exceptions=False)`
+  fixture — the shared `client` fixture's default re-raises unhandled
+  exceptions into the test process instead of letting `ServerErrorMiddleware`
+  produce the real response, which is exactly what those two tests needed to
+  inspect).
+- **Streak "history"** — still open, lower priority. The spec's
+  `GET /users/me/streaks` description says "streak history + current streak
+  count"; the actual response is `{current_streak, best_streak}` per
+  challenge — no day-by-day activity list. `current streak count` is
+  covered; a literal "history" (which would also unlock a real
+  calendar-heatmap data-viz, noted as a road-not-taken in Phase 8) is not.
+  Cosmetic/interpretation gap, not a broken contract — lowest priority item
+  in this doc.
+
+---
+
 ## Risk register (watch these)
 
 - **Evaluator branching creep** — the moment domain code checks `type`, refactor into the strategy.
