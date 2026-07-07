@@ -249,11 +249,15 @@ every pending job then exits) on a GitHub Actions schedule every 5
 minutes — free and unlimited on this public repo, no payment method
 anywhere. Add the same Postgres connection string as a repo secret:
 Settings → Secrets and variables → Actions → New repository secret →
-`DATABASE_URL`. Trade-off: reward evaluation lands within the schedule
-interval (up to ~5 min, GitHub's minimum, sometimes delayed further under
-platform load) instead of the ~1s `run_forever` gives locally. If that
-latency matters more than avoiding a card on file, switch to a paid Render
-Background Worker running `app/worker.py` with no `--once` flag instead.
+`DATABASE_URL`. Trade-off: GitHub's `schedule` trigger is best-effort, not
+a guarantee — on a low-traffic public repo the gap between firings can run
+one to several *hours*, not the nominal 5-minute minimum, instead of the
+~1s `run_forever` gives locally. For a demo or to verify a fix quickly,
+don't wait on the schedule — trigger a drain on demand from the Actions
+tab ("Drain evaluation queue" → Run workflow) or `gh workflow run
+drain-worker.yml`. If low, predictable latency matters more than avoiding
+a card on file, switch to a paid Render Background Worker running
+`app/worker.py` with no `--once` flag instead.
 
 **4. Frontend (Vercel)** — import the repo, set **Root Directory** to
 `frontend` in the project settings (Vercel auto-detects Next.js from

@@ -5,14 +5,18 @@ name: Drain evaluation queue
 # Job, but GitHub Actions scheduled workflows are free on a public repo.
 # This just runs the exact same drain_once() the paid path would use
 # (app/worker.py --once), on GitHub's runner instead of Render's, polling
-# the same Postgres `jobs` outbox table. Evaluation latency becomes "up to
-# 5 minutes" instead of ~1s — see README "Deployment" for the tradeoff.
+# the same Postgres `jobs` outbox table.
 #
-# GitHub won't run a schedule more often than every 5 minutes, and may
-# delay it further under load — this is a best-effort substitute, not a
-# durability guarantee. It also silently stops firing if the repo goes 60
-# days without any activity (a GitHub Actions platform limit); re-push or
-# re-enable the workflow from the Actions tab if that happens.
+# GitHub's `schedule` trigger is best-effort, not a durability guarantee:
+# it won't fire more often than every 5 minutes, and in practice — verified
+# by watching this exact workflow's run history — a low-traffic public repo
+# can see gaps of one to several *hours* between firings, not minutes.
+# Don't rely on `schedule` alone for a demo or for verifying a fix quickly:
+# trigger a drain on demand instead, either from the Actions tab ("Drain
+# evaluation queue" -> Run workflow) or `gh workflow run drain-worker.yml`.
+# It also silently stops firing if the repo goes 60 days without any
+# activity (a GitHub Actions platform limit); re-push or re-enable the
+# workflow from the Actions tab if that happens.
 
 on:
   schedule:
